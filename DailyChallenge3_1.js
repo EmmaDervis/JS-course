@@ -1,3 +1,4 @@
+// Random numbers
 var num1; 
 var num2;
 num1=Math.floor (Math.random() * 10) + 1;

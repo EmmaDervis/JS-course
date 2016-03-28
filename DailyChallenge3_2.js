@@ -1,3 +1,4 @@
+// Reverse text
 var text="I code in javascript";
 var textLength;
 var reverse="";
