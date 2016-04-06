@@ -33,7 +33,7 @@ response.setEncoding('utf8');
     outputData+=chunk;
     });
     response.on('end', () => {
-    return outputData;
+    console.log(outputData);
     })
 });
 
