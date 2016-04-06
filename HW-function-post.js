@@ -21,7 +21,7 @@ headers: {
 };
 
 
-function createUser(postData, options){
+function createUser(postData, options,callback){
 
 var outputData='';
 var req = http.request(options, (response) => {
@@ -33,7 +33,7 @@ response.setEncoding('utf8');
     outputData+=chunk;
     });
     response.on('end', () => {
-    console.log(outputData);
+    return callback(outputData);
     })
 });
 
@@ -43,7 +43,9 @@ console.log (`problem with request: ${e.message}`);
 
 req.write(postData);
 req.end(); 
+
+
     
 }
 
-console.log(createUser(postData,options));
+createUser(postData,options,(outputData)=>{console.log(outputData)});
