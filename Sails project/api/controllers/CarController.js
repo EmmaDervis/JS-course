@@ -5,121 +5,104 @@
  * @help        :: See http://sailsjs.org/#!/documentation/concepts/Controllers
  */
 
+
+
 module.exports = {
 
+    //Test function...checking how promices work
+    test: function(req, res) {
+        sails.log.info("I have been called");
+
+        CarService.getCarById(1)
+            .then(CarService.getUserByCar)
+            .catch(function(error) { ErrorService.log(error, res); })
+            .spread(function(konacnoUser, car) {
+                sails.log("dosli smo konacno");
+                sails.log.info(konacnoUser);
+                sails.log.info(car);
+            })
+            .catch(function(error) { ErrorService.log(error, res); });
+    },
+    //Creating new car that has an owner
     createCarWithOwner: function(req, res) {
-        sails.log.info(req.body);
-        Car.create(req.params.all()).exec(function(err, data) {
-            if (err) {
-                sails.log.error(err);
-                res.json(err);
-            }
-            else {
-                res.json(data);
-            }
-        });
-        res.json(req.body);
+        Car.create(req.params.all())
+            .then(function(newCar) {
+                res.json(newCar);
+                sails.log.info(newCar);
+            })
+            .catch(function(error) { ErrorService.log(error, res); })
 
     },
 
+    //Find a car owned by specific user
     getCarsFromUser: function(req, res) {
-        Car.find({ where: { owner: req.body.owner } }, function(err, data) {
-            if (err) {
-                sails.log.error(err);
-                res.json(err);
-            }
-            else {
-                sails.log.info(data);
-                res.json(data);
-            }
-        })
+        Car.find({ where: { ownerUser: req.body.ownerUser } })
+            .then(function(carForUser) {
+                res.json(carForUser);
+                sails.log.info(carForUser);
+            })
+            .catch(function(error) { ErrorService.log(error, res); })
     },
+    //Find a car owned by specific shop
+    getCarsFromShop: function(req, res) {
+        Car.find({ where: { ownerShop: req.body.ownerShop } })
+            .then(function(carForShop) {
+                res.json(carForShop);
+                sails.log.info(carForShop);
+            })
+            .catch(function(error) { ErrorService.log(error, res); })
+    },
+    //Buy car if you have enough money
 
     buyCar: function(req, res) {
+        var userId = Number(req.param('user_id'));
+        var shopId = Number(req.param('shop_id'));
+        var carId = Number(req.param('car_id'));
+
         //XOR funkcija unutar if ispod -> samo jedan parametar prolazi 
-        if ((req.param('user_id') && !req.param('shop_id')) || (!req.param('user_id') && req.param('shop_id'))) {
-            if (req.param('user_id')) {
+        if ((userId && !shopId) || (!userId && shopId)) {
+            if (userId) {
 
-                Balance.findOne({ accountUser: Number(req.param('user_id')) }).exec(function(err, balanceData) {
-                    if (err){
-                        res.json(err);
-                    }
-                    else {
-                        var balanceOfUser = Number(balanceData.accountBalance);
+                var businesData = {};
 
-                        //sails.log.info(balanceOfUser);
-                        Car.findOne({ id: Number(req.param('car_id')) }).exec(function(err, carData) {
-                            if (err){
-                                res.json(err);
-                            }
-                            else {
-                                var buyCarPrice = Number(carData.priceBuyCar);
-                                var shopId = Number(carData.ownerShop);
-                                //sails.log.info("CarPrice: " + buyCarPrice);
-                                if (balanceOfUser > buyCarPrice) {
-                                    Car.update({ id: Number(req.param('car_id')) }, { ownerShop: null, ownerUser: req.param('user_id') })
-                                    .exec(function(err, data) {
-                                        if (err) {
-                                            res.json(err);
-                                        }
-                                        else {
-                                            Balance.update({ accountUser: Number(req.param('user_id')) }, 
-                                            { accountBalance: balanceOfUser - buyCarPrice }).exec(function(err, data) {
-                                                if (err) {
-                                                    res.json(err);
-                                                }
-                                                else {
+                BalanceService.findBalanceForUserId(userId)
+                    .then(function(balance) {
+                        businesData.userBalance = balance;
+                        return CarService.getCarById(carId);
+                    })
+                    .then(function(car) {
+                        businesData.car = car;
+                        return BalanceService.findBalanceForShopId(car.ownerShop);
+                    })
+                    .then(function(shopBalance) {
+                        businesData.shopBalance = shopBalance;
+                        sails.log.info(businesData);
+                        
+                        businesData.userMoney = Number(businesData.userBalance.accountBalance);
+                        businesData.carPrice = Number(businesData.car.priceBuyCar);
+                        businesData.shopMoney=Number(businesData.shopBalance.accountBalance);
+                        businesData.formerOwner=businesData.car.ownerShop;
+                        if (businesData.userMoney >=  businesData.carPrice) {
+                            return Car.update({ id: carId }, { ownerShop: null, ownerUser: userId });
+                        }
 
-                                                    Balance.findOne({ accountShop: shopId }).exec(function(err, balanceData) {
-                                                        if (err) {
-                                                            res.json(err);
-                                                        }
-                                                        else {
-                                                            var balanceOfShop = Number(balanceData.accountBalance);
+                        throw "There is not enough money!";
+                    })
+                    .then(function() {
+                        sails.log.info("There is enough money");
+                        var newUserAccountBalance = businesData.userMoney  - businesData.carPrice;
 
-                                                            Balance.update({ accountShop: shopId }, { accountBalance: balanceOfShop + buyCarPrice }).exec(function(err, data) {
-                                                                if (err) {
-                                                                    res.json(err);
-                                                                }
-                                                                else {
-                                                                    res.json(data);
-                                                                }
-                                                            });
-                                                        }
-                                                    });
-                                                }
-                                            });
-                                        }
-                                    });
-                         
-                     
-                                }
-                                    
-                                    
-                                else {
-                                    res.json({ errorMessage: 'There is not enough money on your bank account to buy this car!' });
-                                }
-                            }
+                        return Balance.update({ accountUser: userId }, { accountBalance: newUserAccountBalance });
+                    })
+                    .then(function() {
+                        var newShopAccountBalance = businesData.shopMoney + businesData.carPrice;
 
-                        });
-                    }
-                });
-            }
-                
-
-
-
-
-            else if (req.param('shop_id')) {
-                /*
-                Car.update({ id: Number(req.param('car_id')) }, { ownerShop: req.param('shop_id'), ownerUser: null }).exec(function(err, data) {
-                    if (err) {
-                        res.json(err);
-                    }
-                    else {
-                        res.json(data);
-                    }
-                })*/
+                        return Balance.update({ accountShop:  businesData.formerOwner}, { accountBalance: newShopAccountBalance });
+                    })
+                    .then(function() {
+                        res.json("You bought a car!");
+                    })
+                    .catch(function(error) { ErrorService.log(error, res); });
             }
         }
         else {

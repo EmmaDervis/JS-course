@@ -50,12 +50,12 @@ module.exports = {
       },
       priceBuyCar:{
           type:'string',
-          integer:true,
+          decimal:true,
           required:true
       },
       priceRentCar:{
           type:'string',
-          integer:true,
+          decimal:true,
           required:true
       }
 
