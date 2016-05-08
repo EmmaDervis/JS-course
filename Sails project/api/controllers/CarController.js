@@ -61,9 +61,10 @@ module.exports = {
 
         //XOR funkcija unutar if ispod -> samo jedan parametar prolazi 
         if ((userId && !shopId) || (!userId && shopId)) {
+            //If buyer is user
             if (userId) {
-
-                var businesData = {};
+                 
+                var businesData = {};//variable in which we save value of every "then" return
 
                 BalanceService.findBalanceForUserId(userId)
                     .then(function(balance) {
@@ -77,32 +78,74 @@ module.exports = {
                     .then(function(shopBalance) {
                         businesData.shopBalance = shopBalance;
                         sails.log.info(businesData);
-                        
+
                         businesData.userMoney = Number(businesData.userBalance.accountBalance);
                         businesData.carPrice = Number(businesData.car.priceBuyCar);
-                        businesData.shopMoney=Number(businesData.shopBalance.accountBalance);
-                        businesData.formerOwner=businesData.car.ownerShop;
-                        if (businesData.userMoney >=  businesData.carPrice) {
+                        businesData.shopMoney = Number(businesData.shopBalance.accountBalance);
+                        businesData.formerOwner = businesData.car.ownerShop;
+                        if (businesData.userMoney >= businesData.carPrice) {
                             return Car.update({ id: carId }, { ownerShop: null, ownerUser: userId });
                         }
 
                         throw "There is not enough money!";
                     })
                     .then(function() {
-                        sails.log.info("There is enough money");
-                        var newUserAccountBalance = businesData.userMoney  - businesData.carPrice;
+                       // sails.log.info("There is enough money");
+                        var newUserAccountBalance = businesData.userMoney - businesData.carPrice;
 
                         return Balance.update({ accountUser: userId }, { accountBalance: newUserAccountBalance });
                     })
                     .then(function() {
                         var newShopAccountBalance = businesData.shopMoney + businesData.carPrice;
 
-                        return Balance.update({ accountShop:  businesData.formerOwner}, { accountBalance: newShopAccountBalance });
+                        return Balance.update({ accountShop: businesData.formerOwner }, { accountBalance: newShopAccountBalance });
                     })
                     .then(function() {
-                        res.json("You bought a car!");
+                        res.json("User bought a car!");
                     })
                     .catch(function(error) { ErrorService.log(error, res); });
+            }
+            //if buyer is shop
+            else if (shopId) {
+                var businesData = {};
+                BalanceService.findBalanceForShopId(shopId)
+                    .then(function(shopBalance) {
+                        businesData.shopBalance = shopBalance;
+                        return CarService.getCarById(carId);
+                    })
+                    .then(function(car) {
+                        businesData.car = car;
+                        return BalanceService.findBalanceForUserId(businesData.car.ownerUser);
+                    })
+                    .then(function(userBalance) {
+                        businesData.userBalance = userBalance;
+                        businesData.shopMoney = Number(businesData.shopBalance.accountBalance);
+                        businesData.carPrice = Number(businesData.car.priceBuyCar);
+                        businesData.userMoney = Number(businesData.userBalance.accountBalance);
+                        businesData.formerOwner=Number(businesData.car.ownerUser);
+
+                        if (businesData.shopMoney >= businesData.carPrice) {
+                            return Car.update({ id: carId }, { ownerUser: null, ownerShop: shopId });
+                        }
+                        throw "There is not enough money";
+                    })
+                    .then(function() {
+                        var newShopAccountBalance = businesData.shopMoney - businesData.carPrice;
+                        sails.log(newShopAccountBalance);
+                        return Balance.update({ accountShop: shopId }, { accountBalance: newShopAccountBalance });
+                    })
+                    .then(function() {
+                        var newUserAccountBalance = businesData.userMoney + businesData.carPrice;
+                        sails.log.info(newUserAccountBalance);
+                        return Balance.update({ accountUser: businesData.formerOwner }, { accountBalance: newUserAccountBalance });
+                    })
+                    .then(function(){
+                        
+                       sails.log.info("Shop bought a car");
+                       res.json("Shop bought a car!");
+                    })
+                    .catch(function(error){ErrorService.log(error,res);})
+
             }
         }
         else {
